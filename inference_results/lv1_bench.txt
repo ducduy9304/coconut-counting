@@ -1,0 +1,7 @@
+CPU: x86_64 | logical cores 16 | onnxruntime 1.30.0 ['CPUExecutionProvider'] | intra-op threads default
+model: coconut_lv1_yolo26n_480x288.onnx input 480x288 + NMS | video: lv1.mp4 | timed frames 4621 (after 20 warmup)
+
+pipelined FPS (decode | infer | track+count threads, wall clock, incl. video writing):   61.2  OK target 25
+
+count = 1043 (whole run incl. warmup frames: 4641 frames)
+video -> inference_results/lv1_cpu.mp4
