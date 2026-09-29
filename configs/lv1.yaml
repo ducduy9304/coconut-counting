@@ -1,0 +1,11 @@
+# lv1: belt seen top-down, coconuts move down the frame
+name: lv1
+zip: data/coconut.v1i.yolo26.zip  # Roboflow export
+video: CoconutVideos/lv1.mp4
+crop: [620, 0, 1260, 1080]  # x1 y1 x2 y2 in video pixels; training and inference use the same crop
+val_start: 3640  # labeled frames with index >= this go to valid
+model: yolo26n.pt  # ~2.5x faster than yolo26s on CPU, same count (lv1: 1042 vs 1043)
+imgsz: 480  # train / Ultralytics predict size
+flipud: 0.5  # top-down view: vertical flips are valid training views
+onnx_imgsz: [480, 288]  # H W of the CPU ONNX export, multiples of 32
+line: 0.8  # counting line, fraction of crop height

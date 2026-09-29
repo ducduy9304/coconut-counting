@@ -12,16 +12,19 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
+from config import load_config
 from counter import LineCounter
 
 p = argparse.ArgumentParser()
-p.add_argument("video", nargs="?", default="CoconutVideos/lv1.mp4")
-p.add_argument("--weights", default="train_results/lv1_yolo26s_480/weights/best.pt")
-p.add_argument("--crop", type=int, nargs=4, default=[620, 0, 1260, 1080], metavar=("X1", "Y1", "X2", "Y2"))
-p.add_argument("--imgsz", type=int, default=480)
+p.add_argument("config", help="dataset config, e.g. configs/lv1.yaml")
+c = load_config(p.parse_known_args()[0].config)
+p.add_argument("--video", default=c.video)
+p.add_argument("--weights", default=c.best)
+p.add_argument("--crop", type=int, nargs=4, default=c.crop, metavar=("X1", "Y1", "X2", "Y2"))
+p.add_argument("--imgsz", type=int, default=c.imgsz)
 p.add_argument("--conf", type=float, default=0.1, help="low so ByteTrack's second-stage matching sees weak boxes")
 p.add_argument("--tracker", default="bytetrack.yaml")
-p.add_argument("--line", type=float, default=0.8, help="counting line, fraction of crop height")
+p.add_argument("--line", type=float, default=c.line, help="counting line, fraction of crop height")
 p.add_argument("--mem", type=int, default=25, help="frames a count blocks re-counts of the same coconut")
 p.add_argument("--gate", type=float, default=60, help="px in x within which a new track is the same coconut")
 p.add_argument("--min-hits", type=int, default=3, help="detections a track needs before it can be counted")

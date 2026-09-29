@@ -1,0 +1,12 @@
+# lv2: inclined belt, coconuts move down the frame and drop off its end roller (y ~ 700) onto a pile below.
+# Coconuts can bounce back up at the belt end, so the crop reaches the frame bottom to keep the fall in view.
+name: lv2
+zip: data/coconut_lv2.v1i.yolo26.zip  # Roboflow export
+video: CoconutVideos/lv2.avi
+crop: [340, 100, 1500, 1200]  # x1 y1 x2 y2 in video pixels; training and inference use the same crop
+val_start: 2040  # labeled frames with index >= this go to valid
+model: yolo26n.pt  # ~2.5x faster than yolo26s on CPU, same count (lv2: 877 both)
+imgsz: 480  # train / Ultralytics predict size
+flipud: 0.0  # perspective view (far coconuts small at the top): vertical flips are not realistic
+onnx_imgsz: [448, 480]  # H W of the CPU ONNX export, multiples of 32
+line: 0.58  # counting line, fraction of crop height: y ~ 740 in the video, below the belt-end roller where coconuts are already falling

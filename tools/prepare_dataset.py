@@ -5,6 +5,8 @@
 - Drops junk labels: lines with < 3 points (stray 1px boxes), polygons smaller than --min-size px,
   and duplicate polygons drawn twice over the same coconut.
 - Crops to the belt region (same crop the detector sees at inference) and shifts polygons into it.
+  Polygons crossing the crop edge are clipped to it; those with less than --min-visible of their area
+  inside are dropped.
 - Splits train/valid by time: frame index >= --val-start goes to valid.
 Polygons are kept, so the set trains both detect (boxes derived from polygons) and -seg models.
 """
@@ -17,21 +19,46 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from config import load_config
+
 p = argparse.ArgumentParser()
-p.add_argument("zip", nargs="?", default="data/coconut.v1i.yolo26.zip")
-p.add_argument("--out", default="data/coconut_lv1")
-p.add_argument("--crop", type=int, nargs=4, default=[620, 0, 1260, 1080], metavar=("X1", "Y1", "X2", "Y2"))
-p.add_argument("--val-start", type=int, default=3640, help="frames with index >= this go to valid")
+p.add_argument("config", help="dataset config, e.g. configs/lv1.yaml")
+c = load_config(p.parse_known_args()[0].config)
+p.add_argument("--zip", default=c.zip)
+p.add_argument("--out", default=c.data)
+p.add_argument("--crop", type=int, nargs=4, default=c.crop, metavar=("X1", "Y1", "X2", "Y2"))
+p.add_argument("--val-start", type=int, default=c.val_start, help="frames with index >= this go to valid")
 p.add_argument("--min-size", type=float, default=20, help="drop polygons whose bbox max side (px) is below this")
 p.add_argument("--dup-iou", type=float, default=0.7, help="drop a polygon whose bbox overlaps an earlier one above this IoU")
-p.add_argument("--overlay", default="data/review/overlay_coconut_lv1", help="write labeled previews; '' = skip")
+p.add_argument("--min-visible", type=float, default=0.5, help="drop polygons with less of their area inside the crop")
+p.add_argument("--overlay", help="write labeled previews here (default data/review/overlay_<out name>); '' = skip")
 a = p.parse_args()
+if a.overlay is None:
+    a.overlay = f"data/review/overlay_{Path(a.out).name}"
 
 def iou(p, q):
     w = max(0, min(p[2], q[2]) - max(p[0], q[0]))
     h = max(0, min(p[3], q[3]) - max(p[1], q[1]))
     inter = w * h
     return inter / ((p[2] - p[0]) * (p[3] - p[1]) + (q[2] - q[0]) * (q[3] - q[1]) - inter)
+
+
+def clip(pts, x1, y1, x2, y2):
+    """Clip a polygon (N, 2) to an axis-aligned rectangle (Sutherland-Hodgman)."""
+    for axis, bound, keep_low in ((0, x1, False), (0, x2, True), (1, y1, False), (1, y2, True)):
+        inside = (lambda q: q[axis] <= bound) if keep_low else (lambda q: q[axis] >= bound)
+        res = []
+        for i, cur in enumerate(pts):
+            prev = pts[i - 1]
+            if inside(cur) != inside(prev):
+                t = (bound - prev[axis]) / (cur[axis] - prev[axis])
+                res.append(prev + t * (cur - prev))
+            if inside(cur):
+                res.append(cur)
+        pts = np.array(res).reshape(-1, 2)
+        if not len(pts):
+            break
+    return pts
 
 
 x1, y1, x2, y2 = a.crop
@@ -69,8 +96,11 @@ for name in images:
             dropped.append((stem, i, "duplicate"))
             continue
         kept.append(box)
-        if pts[:, 0].min() < x1 - 1 or pts[:, 0].max() > x2 + 1 or pts[:, 1].min() < y1 - 1 or pts[:, 1].max() > y2 + 1:
-            raise SystemExit(f"{stem} line {i}: polygon leaves crop {a.crop}; widen --crop")
+        area = cv2.contourArea(pts.astype(np.float32))
+        pts = clip(pts, x1, y1, x2, y2)
+        if len(pts) < 3 or cv2.contourArea(pts.astype(np.float32)) < a.min_visible * area:
+            dropped.append((stem, i, "outside crop"))
+            continue
         rel = np.clip((pts - [x1, y1]) / [cw, ch], 0, 1)
         lines.append(v[0] + " " + " ".join(f"{c:.6f}" for c in rel.ravel()) + "\n")
 
